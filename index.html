@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FC2 Results</title>
+    <style>
+        body { font-family: Arial; max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .video { border: 1px solid #ccc; margin: 10px 0; padding: 15px; border-radius: 5px; }
+        .magnet { background: #f0f0f0; padding: 10px; word-break: break-all; }
+        img { max-width: 300px; height: auto; }
+    </style>
+</head>
+<body>
+    <h1>FC2 Leak Detector Results</h1>
+    <div id="results"></div>
+    
+    <script>
+        // Load your JSON results
+        fetch('results/results.json')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('results').innerHTML = 
+                    data.map(v => `
+                        <div class="video">
+                            <h3>${v.title || 'Video'}</h3>
+                            <img src="img/${v.id}.jpg" onerror="this.style.display='none'">
+                            <div class="magnet">
+                                <strong>Magnet:</strong> ${v.magnet || 'N/A'}
+                            </div>
+                        </div>
+                    `).join('');
+            })
+            .catch(() => {
+                document.getElementById('results').innerHTML = 
+                    '<p>Place your results JSON in data/results/</p>';
+            });
+    </script>
+</body>
+</html>
