@@ -1,38 +1,220 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
     <title>FC2 Results</title>
     <style>
-        body { font-family: Arial; max-width: 1200px; margin: 0 auto; padding: 20px; }
-        .video { border: 1px solid #ccc; margin: 10px 0; padding: 15px; border-radius: 5px; }
-        .magnet { background: #f0f0f0; padding: 10px; word-break: break-all; }
-        img { max-width: 300px; height: auto; }
+        :root {
+            font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+            color: #202522;
+            background: #f4f5f2;
+            font-synthesis: none;
+            --ink: #202522;
+            --muted: #69716c;
+            --line: #dce1dc;
+            --green: #176b4d;
+            --red: #a74437;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; }
+        header {
+            background: #183d32;
+            color: #f5f7f4;
+            padding: 28px max(24px, calc((100vw - 1180px) / 2));
+        }
+        .eyebrow { color: #b8d2c5; font-size: 12px; text-transform: uppercase; }
+        h1 { margin: 8px 0 0; font-size: 28px; font-weight: 600; }
+        main { max-width: 1180px; margin: 0 auto; padding: 24px; }
+        .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 20px; }
+        .file-label, input, select {
+            min-height: 40px;
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            background: #fff;
+            color: var(--ink);
+            padding: 0 12px;
+            font: inherit;
+        }
+        .file-label { display: inline-flex; align-items: center; cursor: pointer; background: #176b4d; color: white; border-color: #176b4d; }
+        .file-label input { display: none; }
+        #search { flex: 1 1 220px; }
+        #status-filter { min-width: 160px; }
+        .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-block: 1px solid var(--line); margin-bottom: 22px; }
+        .stat { padding: 14px 16px 14px 0; }
+        .stat + .stat { border-left: 1px solid var(--line); padding-left: 16px; }
+        .stat-label { display: block; color: var(--muted); font-size: 12px; }
+        .stat-value { display: block; margin-top: 5px; font-size: 21px; font-weight: 600; }
+        .report-meta { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+        .result { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 16px; align-items: start; padding: 16px 0; border-top: 1px solid var(--line); }
+        .thumb { width: 76px; aspect-ratio: 4 / 3; object-fit: cover; background: #e3e8e3; }
+        .title { margin: 0 0 5px; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+        .video-id { color: var(--muted); font-size: 13px; }
+        .badge { white-space: nowrap; border-radius: 3px; padding: 5px 8px; font-size: 12px; background: #e5eee8; color: var(--green); }
+        .badge.unavailable { background: #f3e9e6; color: var(--red); }
+        .magnets { margin: 10px 0 0; padding: 0; list-style: none; }
+        .magnets li { margin-top: 5px; padding: 8px 10px; background: #e9ece8; font: 12px/1.5 ui-monospace, monospace; overflow-wrap: anywhere; }
+        .empty { padding: 48px 16px; text-align: center; color: var(--muted); border-block: 1px solid var(--line); }
+        @media (max-width: 620px) {
+            header { padding: 22px 20px; }
+            main { padding: 18px 20px; }
+            .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .stat:nth-child(3) { border-left: 0; padding-left: 0; }
+            .result { grid-template-columns: 60px minmax(0, 1fr); gap: 12px; }
+            .thumb { width: 60px; }
+            .badge { grid-column: 2; justify-self: start; }
+        }
     </style>
 </head>
 <body>
-    <h1>FC2 Leak Detector Results</h1>
-    <div id="results"></div>
-    
+    <header>
+        <div class="eyebrow">FC2 Leak Detector</div>
+        <h1>Analysis results</h1>
+    </header>
+    <main>
+        <div class="toolbar">
+            <label class="file-label">Open JSON report<input id="report-file" type="file" accept=".json,application/json"></label>
+            <input id="search" type="search" placeholder="Search title or video ID" aria-label="Search results">
+            <select id="status-filter" aria-label="Filter by status">
+                <option value="all">All statuses</option>
+                <option value="leaked">Available</option>
+                <option value="not-leaked">Not available</option>
+                <option value="other">Other</option>
+            </select>
+        </div>
+        <section class="stats" aria-label="Report summary">
+            <div class="stat"><span class="stat-label">Total videos</span><span class="stat-value" id="total-count">-</span></div>
+            <div class="stat"><span class="stat-label">Available</span><span class="stat-value" id="available-count">-</span></div>
+            <div class="stat"><span class="stat-label">Not available</span><span class="stat-value" id="unavailable-count">-</span></div>
+            <div class="stat"><span class="stat-label">With magnet</span><span class="stat-value" id="magnet-count">-</span></div>
+        </section>
+        <p class="report-meta" id="report-meta"></p>
+        <section id="results" aria-live="polite"><div class="empty">Choose a JSON report to view its results.</div></section>
+    </main>
     <script>
-        // Load your JSON results
-        fetch('results/results.json')
-            .then(r => r.json())
-            .then(data => {
-                document.getElementById('results').innerHTML = 
-                    data.map(v => `
-                        <div class="video">
-                            <h3>${v.title || 'Video'}</h3>
-                            <img src="img/${v.id}.jpg" onerror="this.style.display='none'">
-                            <div class="magnet">
-                                <strong>Magnet:</strong> ${v.magnet || 'N/A'}
-                            </div>
-                        </div>
-                    `).join('');
-            })
-            .catch(() => {
-                document.getElementById('results').innerHTML = 
-                    '<p>Place your results JSON in data/results/</p>';
+        const fileInput = document.querySelector("#report-file");
+        const searchInput = document.querySelector("#search");
+        const statusFilter = document.querySelector("#status-filter");
+        const resultsElement = document.querySelector("#results");
+        let reportResults = [];
+        let reportInfo = {};
+
+        function isAvailable(video) {
+            const status = String(video.status || "").toLowerCase();
+            return video.leaked === true || status === "available" || status === "leaked" || status === "yes" || status === "true";
+        }
+
+        function normalizeReport(data) {
+            const records = Array.isArray(data) ? data : data.results || data.videos || data.data || [];
+            if (!Array.isArray(records)) throw new Error("This JSON file does not contain a results list.");
+            reportInfo = Array.isArray(data) ? {} : data;
+            reportResults = records.map((video) => ({
+                ...video,
+                video_id: String(video.video_id ?? video.id ?? ""),
+                title: String(video.title || ""),
+                magnets: Array.isArray(video.magnets) ? video.magnets : video.magnet ? [video.magnet] : []
+            }));
+            updateSummary();
+            renderResults();
+            const name = reportInfo.author_name || reportInfo.writerid || reportInfo.timestamp || "JSON report";
+            document.querySelector("#report-meta").textContent = `${name} · ${reportResults.length} records`;
+        }
+
+        function updateSummary() {
+            const available = reportResults.filter(isAvailable).length;
+            const withMagnets = reportResults.filter((video) => video.magnets.some(Boolean)).length;
+            document.querySelector("#total-count").textContent = reportResults.length;
+            document.querySelector("#available-count").textContent = available;
+            document.querySelector("#unavailable-count").textContent = reportResults.filter((video) => ["not_available", "not_leaked", "unavailable", "false"].includes(String(video.status || "").toLowerCase())).length;
+            document.querySelector("#magnet-count").textContent = withMagnets;
+        }
+
+        function renderResults() {
+            const term = searchInput.value.trim().toLowerCase();
+            const selectedStatus = statusFilter.value;
+            const filtered = reportResults.filter((video) => {
+                const available = isAvailable(video);
+                const status = String(video.status || "").toLowerCase();
+                const matchesStatus = selectedStatus === "all" ||
+                    (selectedStatus === "leaked" && available) ||
+                    (selectedStatus === "not-leaked" && !available && ["not_available", "not_leaked", "unavailable", "false"].includes(status)) ||
+                    (selectedStatus === "other" && !available && !["not_available", "not_leaked", "unavailable", "false"].includes(status));
+                return matchesStatus && `${video.video_id} ${video.title}`.toLowerCase().includes(term);
             });
+
+            resultsElement.replaceChildren();
+            if (!filtered.length) {
+                const empty = document.createElement("div");
+                empty.className = "empty";
+                empty.textContent = reportResults.length ? "No results match these filters." : "This report contains no video results.";
+                resultsElement.append(empty);
+                return;
+            }
+
+            for (const video of filtered) {
+                const row = document.createElement("article");
+                row.className = "result";
+                const image = document.createElement("img");
+                image.className = "thumb";
+                image.alt = "";
+                image.src = `data/img/${encodeURIComponent(video.video_id)}.jpg`;
+                image.addEventListener("error", () => image.remove(), { once: true });
+                row.append(image);
+
+                const details = document.createElement("div");
+                const title = document.createElement("h2");
+                title.className = "title";
+                title.textContent = video.title || `FC2-PPV-${video.video_id || "Unknown"}`;
+                const id = document.createElement("div");
+                id.className = "video-id";
+                id.textContent = video.video_id ? `ID ${video.video_id}` : "ID unavailable";
+                details.append(title, id);
+                const magnets = video.magnets.filter(Boolean);
+                if (magnets.length) {
+                    const list = document.createElement("ul");
+                    list.className = "magnets";
+                    for (const magnet of magnets) {
+                        const item = document.createElement("li");
+                        item.textContent = magnet;
+                        list.append(item);
+                    }
+                    details.append(list);
+                }
+                row.append(details);
+
+                const badge = document.createElement("span");
+                const available = isAvailable(video);
+                badge.className = `badge${available ? "" : " unavailable"}`;
+                badge.textContent = available ? "Available" : String(video.status || "Unknown");
+                row.append(badge);
+                resultsElement.append(row);
+            }
+        }
+
+        fileInput.addEventListener("change", async () => {
+            const file = fileInput.files[0];
+            if (!file) return;
+            try {
+                normalizeReport(JSON.parse(await file.text()));
+            } catch (error) {
+                resultsElement.replaceChildren();
+                const message = document.createElement("div");
+                message.className = "empty";
+                message.textContent = `Could not read report: ${error.message}`;
+                resultsElement.append(message);
+            }
+        });
+        searchInput.addEventListener("input", renderResults);
+        statusFilter.addEventListener("change", renderResults);
+
+        fetch("data/results/results.json")
+            .then((response) => {
+                if (!response.ok) throw new Error("No default report");
+                return response.json();
+            })
+            .then(normalizeReport)
+            .catch(() => {});
     </script>
 </body>
 </html>
